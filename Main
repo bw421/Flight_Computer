@@ -1,0 +1,8 @@
+
+void setup() {}
+
+void loop() {
+  while(!imu_read());
+  rc_read_values();
+  fc_process();
+}
