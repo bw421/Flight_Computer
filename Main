@@ -1,8 +1,32 @@
+/*
+Bryan Wade
+Arduino-Based Drone Flight Computer
+04MAY2020
 
-void setup() {}
+Compatible Sensors:
+    IMU
+      MPU6050
+      
+    BARO
+      
+    GPS
+*/
+
+//MAIN ROUTINE
+
+
+void setup() {
+  //Library calls
+}
 
 void loop() {
   while(!imu_read());
   rc_read_values();
   fc_process();
+}
+
+void imu_read() {
+  //Get data from sensors
+  
+  
 }
