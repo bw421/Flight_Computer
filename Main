@@ -17,6 +17,16 @@ Compatible Sensors:
 
 void setup() {
   //Library calls
+  #include Wire.h
+  
+  //Define Constants: i.e. I2C address
+  accel_data = 00000110 //Pin 6 on MPU6050 - AUX_DA Pin
+  accel_clk = 00000111 //Pin 7 - AUX_CL Pin
+  
+  //Establish Connection and Configure MPU6050 Settings
+  Wire.beginTransmission();
+  
+  
 }
 
 void loop() {
