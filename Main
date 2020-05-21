@@ -15,23 +15,19 @@
  *
  * ========================================*/
 
-//MAIN ROUTINE
-
 //Library calls
-#include Wire.h
+    #include Wire.h
 
 //Define Constants: i.e. I2C address
-MPU_ADDR = 0x68; //I2C address of MPU6050. If AD0 pin set high, I2C Address will be 0x69
-int16_t accel_x, accel_y, accel_z;
-int16_t gyro_x, gyro_y, gyro_z;
-int16_t temp;
+    MPU_ADDR = 0x68; //I2C address of MPU6050. If AD0 pin set high, I2C Address will be 0x69
+    int16_t accel_x, accel_y, accel_z;
+    int16_t gyro_x, gyro_y, gyro_z;
+    int16_t temp;
 
-/*=========================================
- * Note: 
- * int16_t specifies a 16 bit integer, whereas 
- * int can be a 16 or 32 bit integer (on the Arduino Due)
- * int_fast16_t can be used in critical sections of code that require a minimum of 16 bits
- * ========================================*/
+//Define Variables for ISRs
+    byte last_channel_1, last_channel_2, last_channel_3, last_channel_4;
+    int rx_inputch_1, rx_inputch_2, rx_inputch_3, rx_inputch_4;
+    unsigned long timer_1, timer_2, timer)3, timer_4;
 
 char tmp_str[7]; //temporary variable used in convert function
 
@@ -40,31 +36,22 @@ char* convert_int16_to_str(int16_t i){
     return tmp_str;
 }
 
-/* =============================================================================
- * The sprintf function will write the formatting string and the variables into the "data" character array.
- * You provide a formatting string template, that contains placeholders for variables that you plan to insert.
- * These placeholders have a percentage sign (%) prefix.  Eg.  %s, %d, %f etc.
- * The number of placeholders must match the number of variables.
- * The variables are inserted at the placeholder position, and formatted based on the type of placeholder used.
- * %d = signed integer               %f = floating point number  
- * %s = string                     %.1f = float to 1 decimal place
- * %c = character                  %.3f = float to 3 decimal places
- * %e = scientific notation          %g = shortest representation of %e or %f                
- * %u = unsigned integer             %o = unsigned octal
- * %x = unsigned hex (lowercase)     %X = unsigned hex (uppercase)
- * %hd = short int                  %ld = long int
- * %lld = long long int
- * =============================================================================  */
-
 void setup() {
    
   //Establish Connection and Configure MPU6050 Settings
-  //Serial.begin(9600);
   Wire.begin();
   Wire.beginTransmission(MPU_ADDR);
   Wire.write(0x6B); //PWR_MGMT_1 register
   Wire.write(0); //wake up the MPU6050
   Wire.endTransmission(true); 
+  
+  //Setup ISR pins.  Arduino ATMEGA328 pins default to inputs,  so they don't need to be explicitly stated
+  PCICR |= (1 << PCIE0); // Set PCIE0 to enable PCMSK0 Scan
+  PCMSK0 |= (1 << PCINT0); // Set PCINT0 (digital input 8) to trigger interrupt on state change
+  PCMSK0 |= (1 << PCINT1); // Set PCINT1 (digital input 9) to trigger interrupt on state change
+  PCMSK0 |= (1 << PCINT2); // Set PCINT2 (digital input 10) to trigger interrupt on state change
+  PCMSK0 |= (1 << PCINT3); // Set PCINT3 (digital input 11) to trigger interrupt on state change
+  
   /*Note: At powerup, MPU clock source defaults to internal ocsillator.
   Highly recommended the device be configured to use one of the gyroscopes
   (or external clock source) as the clock reference for improved stability.
@@ -112,5 +99,69 @@ void imu_read() {
   // delay
   delay(1000);
   ---------------*/
-  
+}
+
+ISR(PCINT0_vect){
+    //Channel 1 ------------------------------------
+    if(last_channel_1 == 0 && PINB & B00000001 ){           //Input 8 changed from 0 to 1
+        last_channel_1 = 1;                                 //Remember the current state
+        timer_1 = micros();                                 //Set timer to mircos
+    }
+    else if(last_channel_1 == 1 && !(PINB & B00000001)){    //Input 8 changed from 1 to 0
+        last_channel_1 = 0;                                 //Remember current input state
+        rx_inputch_1 = micros() - timer_1;                  /Channel 1 is micros() - timer_1
+    }
+    //Channel 2 ------------------------------------
+    if(last_channel_2 == 0 && PINB & B00000010){
+        last_channel_2 = 1;
+        timer_2 = micros();
+    }
+    else if(last_channel_2 == 1 && !(PINB & B00000010)){
+        last_channel_2 = 0;
+        rx_inputch_2 = micros() - timer_2;
+    }
+    //Channel 3 ------------------------------------
+    if(last_channel_3 == 0 && PINB & B00000100 ){
+        last_channel_3 = 1;
+        timer_3 = micros();
+    }
+    else if(last_channel_3 == 1 && !(PINB & B00000100)){
+        last_channel_3 = 0;
+        rx_inputch_3 = micros() - timer_3;
+    }
+    //Channel 4 ------------------------------------
+    if(last_channel_4 == 0 && PINB & B00001000 ){
+        last_channel_4 = 1;
+        timer_4 = micros();
+    }
+    else if(last_channel_4 == 1 && !(PINB & B00001000)){
+        last_channel_4 = 0;
+        rx_inputch_4 = micros() - timer_4;
+    }
+}
+
+void print_signals(){
+    Serial.print("Roll:");
+    if(rx_inputch_1 - 1400 < 0)Serial.Print("<<<");
+    else if(rx_inputch_1 - 1520 > 0)Serial.print(">>>");
+    else Serial.print("-+-");
+    Serial.print(rx_inputch_1);
+    
+    Serial.print("Pitch:");
+    if(rx_inputch_2 - 1400 < 0)Serial.Print("<<<");
+    else if(rx_inputch_2 - 1520 > 0)Serial.print(">>>");
+    else Serial.print("-+-");
+    Serial.print(rx_inputch_2);
+    
+    Serial.print("Yaw:");
+    if(rx_inputch_3 - 1400 < 0)Serial.Print("<<<");
+    else if(rx_inputch_3 - 1520 > 0)Serial.print(">>>");
+    else Serial.print("-+-");
+    Serial.print(rx_inputch_3);
+    
+    Serial.print("PCL:");
+    if(rx_inputch_4 - 1400 < 0)Serial.Print("<<<");
+    else if(rx_inputch_4 - 1520 > 0)Serial.print(">>>");
+    else Serial.print("-+-");
+    Serial.print(rx_inputch_4);
 }
