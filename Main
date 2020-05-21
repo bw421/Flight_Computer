@@ -16,10 +16,10 @@
  * ========================================*/
 
 //Library calls
-    #include Wire.h
+    #include <Wire.h>
 
 //Define Constants: i.e. I2C address
-    MPU_ADDR = 0x68; //I2C address of MPU6050. If AD0 pin set high, I2C Address will be 0x69
+    const int MPU_ADDR = 0x68; //I2C address of MPU6050. If AD0 pin set high, I2C Address will be 0x69
     int16_t accel_x, accel_y, accel_z;
     int16_t gyro_x, gyro_y, gyro_z;
     int16_t temp;
@@ -27,7 +27,7 @@
 //Define Variables for ISRs
     byte last_channel_1, last_channel_2, last_channel_3, last_channel_4;
     int rx_inputch_1, rx_inputch_2, rx_inputch_3, rx_inputch_4;
-    unsigned long timer_1, timer_2, timer)3, timer_4;
+    unsigned long timer_1, timer_2, timer_3, timer_4;
 
 char tmp_str[7]; //temporary variable used in convert function
 
@@ -57,13 +57,18 @@ void setup() {
   (or external clock source) as the clock reference for improved stability.
   Use CLKSEL to change clock source.
   */
+
+  Serial.begin(9600);
   
 }
 
 void loop() {
+  imu_read();
+  /*
   while(!imu_read()); //while imu_read is false
   read_rc_values();
   fc_process();
+  */
 }
 
 void imu_read() {
@@ -74,31 +79,32 @@ void imu_read() {
   Wire.requestFrom(MPU_ADDR, 7*2, true); //request 14 registers
   //"Wire.read()<<8 | Wire.read();" means two registers are read and stored in the same vairable
   
-  accelerometer_x = Wire.read()<<8 | Wire.read(); //Read registers 0x3B and 0x3C (Accel x High and Low)
-  accelerometer_y = Wire.read()<<8 | Wire.read(); //Read registers 0x3D and 0x3E (Accel y High and Low)
-  accelerometer_z = Wire.read()<<8 | Wire.read(); //Read registers 0x3F and 0x40 (Accel z High and Low)
+  accel_x = Wire.read()<<8 | Wire.read(); //Read registers 0x3B and 0x3C (Accel x High and Low)
+  accel_y = Wire.read()<<8 | Wire.read(); //Read registers 0x3D and 0x3E (Accel y High and Low)
+  accel_z = Wire.read()<<8 | Wire.read(); //Read registers 0x3F and 0x40 (Accel z High and Low)
   
-  temperature = Wire.read()<<8 | Wire.read(); //Read registers 0x41 and 0x42 (Temp High and Low)
+  temp = Wire.read()<<8 | Wire.read(); //Read registers 0x41 and 0x42 (Temp High and Low)
   
   gyro_x = Wire.read()<<8 | Wire.read(); //Read registers 0x43 and 0x44 (Gyro x High and Low)
   gyro_y = Wire.read()<<8 | Wire.read(); //Read registers 0x45 and 0x46 (Gyro y High and Low)
   gyro_z = Wire.read()<<8 | Wire.read(); //Read registers 0x47 and 0x48 (Gyro z High and Low)  
-  
-  /* ------------
+
+  print_mpu_data();
+} 
+
+void print_mpu_data(){
   //print out data
-  Serial.print("aX = "); Serial.print(convert_int16_to_str(accelerometer_x));
-  Serial.print(" | aY = "); Serial.print(convert_int16_to_str(accelerometer_y));
-  Serial.print(" | aZ = "); Serial.print(convert_int16_to_str(accelerometer_z));
+  Serial.print("aX = "); Serial.print(convert_int16_to_str(accel_x));
+  Serial.print(" | aY = "); Serial.print(convert_int16_to_str(accel_y));
+  Serial.print(" | aZ = "); Serial.print(convert_int16_to_str(accel_z));
   // the following equation was taken from the documentation [MPU-6000/MPU-6050 Register Map and Description, p.30]
-  Serial.print(" | tmp = "); Serial.print(temperature/340.00+36.53);
+  Serial.print(" | tmp = "); Serial.print(temp/340.00+36.53);Serial.print("F");
   Serial.print(" | gX = "); Serial.print(convert_int16_to_str(gyro_x));
   Serial.print(" | gY = "); Serial.print(convert_int16_to_str(gyro_y));
   Serial.print(" | gZ = "); Serial.print(convert_int16_to_str(gyro_z));
   Serial.println();
   
-  // delay
   delay(1000);
-  ---------------*/
 }
 
 ISR(PCINT0_vect){
@@ -109,7 +115,7 @@ ISR(PCINT0_vect){
     }
     else if(last_channel_1 == 1 && !(PINB & B00000001)){    //Input 8 changed from 1 to 0
         last_channel_1 = 0;                                 //Remember current input state
-        rx_inputch_1 = micros() - timer_1;                  /Channel 1 is micros() - timer_1
+        rx_inputch_1 = micros() - timer_1;                  //Channel 1 is micros() - timer_1
     }
     //Channel 2 ------------------------------------
     if(last_channel_2 == 0 && PINB & B00000010){
@@ -142,25 +148,25 @@ ISR(PCINT0_vect){
 
 void print_signals(){
     Serial.print("Roll:");
-    if(rx_inputch_1 - 1400 < 0)Serial.Print("<<<");
+    if(rx_inputch_1 - 1400 < 0)Serial.print("<<<");
     else if(rx_inputch_1 - 1520 > 0)Serial.print(">>>");
     else Serial.print("-+-");
     Serial.print(rx_inputch_1);
     
     Serial.print("Pitch:");
-    if(rx_inputch_2 - 1400 < 0)Serial.Print("<<<");
+    if(rx_inputch_2 - 1400 < 0)Serial.print("<<<");
     else if(rx_inputch_2 - 1520 > 0)Serial.print(">>>");
     else Serial.print("-+-");
     Serial.print(rx_inputch_2);
     
     Serial.print("Yaw:");
-    if(rx_inputch_3 - 1400 < 0)Serial.Print("<<<");
+    if(rx_inputch_3 - 1400 < 0)Serial.print("<<<");
     else if(rx_inputch_3 - 1520 > 0)Serial.print(">>>");
     else Serial.print("-+-");
     Serial.print(rx_inputch_3);
     
     Serial.print("PCL:");
-    if(rx_inputch_4 - 1400 < 0)Serial.Print("<<<");
+    if(rx_inputch_4 - 1400 < 0)Serial.print("<<<");
     else if(rx_inputch_4 - 1520 > 0)Serial.print(">>>");
     else Serial.print("-+-");
     Serial.print(rx_inputch_4);
