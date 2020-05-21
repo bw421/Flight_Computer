@@ -23,6 +23,8 @@
     int16_t accel_x, accel_y, accel_z;
     int16_t gyro_x, gyro_y, gyro_z;
     int16_t temp;
+    long z_calfactor;
+    float cal_x, cal_y, cal_z;
 
 //Define Variables for ISRs
     byte last_channel_1, last_channel_2, last_channel_3, last_channel_4;
@@ -37,7 +39,7 @@ char* convert_int16_to_str(int16_t i){
 }
 
 void setup() {
-   
+  
   //Establish Connection and Configure MPU6050 Settings
   Wire.begin();
   Wire.beginTransmission(MPU_ADDR);
@@ -57,8 +59,10 @@ void setup() {
   (or external clock source) as the clock reference for improved stability.
   Use CLKSEL to change clock source.
   */
-
   Serial.begin(9600);
+  Serial.print("Calibrating...Hold Still.");
+  Serial.println();
+  initial_imu_cal();
   
 }
 
@@ -71,13 +75,34 @@ void loop() {
   */
 }
 
+void initial_imu_cal(){
+  int i = 0, calset = 100; //change calset to modify calibration dataset
+  z_calfactor = 0; //clear out any data
+  while (i < calset) {
+    raw_imu_data();
+    z_calfactor = z_calfactor + accel_z;
+    i++;
+  }
+  z_calfactor = (z_calfactor/calset)-256;
+  
+  Serial.print("Calibration Complete. Cal Factor: ");
+  Serial.print(z_calfactor);
+  Serial.println();
+}
 void imu_read() {
+  raw_imu_data();
+  calibrate_imu_data();
+  print_imu_data();
+}
+
+void raw_imu_data(){
   //Get data from sensors
+  Wire.beginTransmission(MPU_ADDR);
   Wire.write(0x3B); //ACCEL_XOUT_H
-  Wire.requestFrom(MPU_ADDR, 7*2, true);
+  Wire.requestFrom(MPU_ADDR, 14, true);
   Wire.endTransmission(false); //Keeps connection active
-  Wire.requestFrom(MPU_ADDR, 7*2, true); //request 14 registers
-  //"Wire.read()<<8 | Wire.read();" means two registers are read and stored in the same vairable
+  Wire.requestFrom(MPU_ADDR, 14, true); //request 14 registers
+  //"Wire.read()<<8 | Wire.read();" means two registers are read and stored in the same variable
   
   accel_x = Wire.read()<<8 | Wire.read(); //Read registers 0x3B and 0x3C (Accel x High and Low)
   accel_y = Wire.read()<<8 | Wire.read(); //Read registers 0x3D and 0x3E (Accel y High and Low)
@@ -88,23 +113,26 @@ void imu_read() {
   gyro_x = Wire.read()<<8 | Wire.read(); //Read registers 0x43 and 0x44 (Gyro x High and Low)
   gyro_y = Wire.read()<<8 | Wire.read(); //Read registers 0x45 and 0x46 (Gyro y High and Low)
   gyro_z = Wire.read()<<8 | Wire.read(); //Read registers 0x47 and 0x48 (Gyro z High and Low)  
-
-  print_mpu_data();
 } 
 
-void print_mpu_data(){
+void calibrate_imu_data(){
+  accel_x = accel_x/256.0; //Calibrate to +/-2G per datasheet
+  accel_y = accel_y/256.0;
+  accel_z = 1.0*accel_z/z_calfactor;
+}
+
+void print_imu_data(){
   //print out data
   Serial.print("aX = "); Serial.print(convert_int16_to_str(accel_x));
   Serial.print(" | aY = "); Serial.print(convert_int16_to_str(accel_y));
   Serial.print(" | aZ = "); Serial.print(convert_int16_to_str(accel_z));
-  // the following equation was taken from the documentation [MPU-6000/MPU-6050 Register Map and Description, p.30]
-  Serial.print(" | tmp = "); Serial.print(temp/340.00+36.53);Serial.print("F");
+  Serial.print(" | tmp = "); Serial.print((temp/340.00+36.53)*9/5+32);Serial.print("F");
   Serial.print(" | gX = "); Serial.print(convert_int16_to_str(gyro_x));
   Serial.print(" | gY = "); Serial.print(convert_int16_to_str(gyro_y));
   Serial.print(" | gZ = "); Serial.print(convert_int16_to_str(gyro_z));
   Serial.println();
   
-  delay(1000);
+  delay(333);
 }
 
 ISR(PCINT0_vect){
