@@ -66,9 +66,6 @@ void loop() {
 
 void initial_imu_cal(){
   
-  Serial.print("Calibrating...Hold Still.");
-  Serial.println();
-  
   int i = 0, calset = 200; //change calset to modify calibration dataset
   while (i < calset) {
     raw_imu_data();
@@ -90,6 +87,7 @@ void initial_imu_cal(){
   gyro_errorY = gyro_errorY/calset;
   gyro_errorZ = gyro_errorZ/calset;
   
+  /*
   Serial.print("Calibration Complete.");
   Serial.println();
   Serial.print("AccelX: "); Serial.print(accel_errorX);
@@ -99,12 +97,14 @@ void initial_imu_cal(){
   Serial.print(" | GyroY: "); Serial.print(gyro_errorY);
   Serial.print(" | GyroZ: "); Serial.print(gyro_errorZ);
   Serial.println();
+  */
 }
 
 void imu_read() {
   raw_imu_data();
   calibrate_imu_data();
-  print_imu_data();
+  print_to_PDE;
+  //print_imu_data();
 }
 
 void raw_imu_data(){
@@ -114,7 +114,6 @@ void raw_imu_data(){
   Wire.requestFrom(MPU_ADDR, 14, true);
   Wire.endTransmission(false); //Keeps connection active
   Wire.requestFrom(MPU_ADDR, 14, true); //request 14 registers
-  //"Wire.read()<<8 | Wire.read();" means two registers are read and stored in the same variable
 
   //Read accelerometer registers and calibrate to +/-2G
   accel_x = (Wire.read()<<8 | Wire.read()) / 16384.00; //Read registers 0x3B and 0x3C (Accel x High and Low)
@@ -124,9 +123,9 @@ void raw_imu_data(){
   temp = Wire.read()<<8 | Wire.read(); //Read registers 0x41 and 0x42 (Temp High and Low)
 
   //Read Gyros and Calculate Degrees/second using the onboard running clock, millis()
-  previousTime = currentTime; //Previous time is stored before reading current time
-  currentTime = millis();     // Current time read from running clock
-  elapsedTime = (currentTime - previousTime) / 1000; //Divide by 1000 to convert to seconds
+  previousTime = currentTime; 
+  currentTime = millis();     
+  elapsedTime = (currentTime - previousTime) / 1000; //Convert to seconds
   
   gyro_x = (Wire.read()<<8 | Wire.read()) / 131.0; //Read registers 0x43 and 0x44 (Gyro x High and Low)
   gyro_y = (Wire.read()<<8 | Wire.read()) / 131.0; //Read registers 0x45 and 0x46 (Gyro y High and Low)
@@ -135,8 +134,8 @@ void raw_imu_data(){
 
 void calibrate_imu_data(){
   
-  accel_angleX = (atan(accel_y/sqrt(pow(accel_x, 2)+pow(accel_z, 2)))*(180/PI)) + accel_errorX;
-  accel_angleY = (atan(-1*accel_x/sqrt(pow(accel_y, 2)+pow(accel_z,2)))*(180/PI)) + accel_errorY;
+  accel_angleX = (atan(accel_y/sqrt(pow(accel_x, 2)+pow(accel_z, 2)))*(180/PI)) - accel_errorX;
+  accel_angleY = (atan(-1*accel_x/sqrt(pow(accel_y, 2)+pow(accel_z,2)))*(180/PI)) - accel_errorY;
 
   //Factor in gyro error from initial calibration
   gyro_x = gyro_x - gyro_errorX; 
@@ -149,23 +148,8 @@ void calibrate_imu_data(){
   yaw = yaw + gyro_z * elapsedTime;
 
   //Add complimentary filter
-  roll = 0.96 * gyro_angleX + 0.04 * accel_angleX;
-  pitch = 0.96 * gyro_angleY + 0.04 * accel_angleY;
-}
-
-void print_imu_data(){
-  //print out data
-  Serial.print("aX = "); Serial.print(accel_angleX);
-  Serial.print(" | aY = "); Serial.print(accel_angleY);
-  Serial.print(" | aZ = "); Serial.print(accel_z);
-  Serial.print(" | tmp = "); Serial.print((temp/340.00+36.53)*9/5+32);Serial.print("F");
-  Serial.print(" | gX = "); Serial.print(gyro_x);
-  Serial.print(" | gY = "); Serial.print(gyro_y);
-  Serial.print(" | gZ = "); Serial.print(gyro_z);
-  Serial.print(" | Roll = "); Serial.print(roll);
-  Serial.print(" | Pitch = "); Serial.print(pitch);
-  Serial.print(" | Yaw = "); Serial.print(yaw);
-  Serial.println();
+  roll = 0.95 * gyro_angleX + 0.05 * accel_angleX;
+  pitch = 0.95 * gyro_angleY + 0.05 * accel_angleY;
 }
 
 ISR(PCINT0_vect){
@@ -205,6 +189,30 @@ ISR(PCINT0_vect){
         last_channel_4 = 0;
         rx_inputch_4 = micros() - timer_4;
     }
+}
+
+void print_to_PDE(){
+  //Only call this function if using Processing Development Environment
+  Serial.print(roll);
+  Serial.print("/");
+  Serial.print(pitch);
+  Serial.print("/");
+  Serial.println(yaw);
+}
+
+void print_imu_data(){
+  //print out data
+  Serial.print("aX = "); Serial.print(accel_angleX);
+  Serial.print(" | aY = "); Serial.print(accel_angleY);
+  Serial.print(" | aZ = "); Serial.print(accel_z);
+  Serial.print(" | tmp = "); Serial.print((temp/340.00+36.53)*9/5+32);Serial.print("F");
+  Serial.print(" | gX = "); Serial.print(gyro_x);
+  Serial.print(" | gY = "); Serial.print(gyro_y);
+  Serial.print(" | gZ = "); Serial.print(gyro_z);
+  Serial.print(" | Roll = "); Serial.print(roll);
+  Serial.print(" | Pitch = "); Serial.print(pitch);
+  Serial.print(" | Yaw = "); Serial.print(yaw);
+  Serial.println();
 }
 
 void print_signals(){
