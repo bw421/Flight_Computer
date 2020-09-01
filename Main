@@ -17,6 +17,7 @@
 
 //Library calls
     #include <Wire.h>
+    #include "math.h"
 
 //Define constants and variables for IMU
     const int MPU_ADDR = 0x68; //I2C address of MPU6050. If AD0 pin set high, I2C Address will be 0x69
@@ -28,6 +29,9 @@
     float roll, pitch, yaw;
     float elapsedTime, currentTime, previousTime;
     long z_calfactor;
+
+//Define Variables for Quaternion Math    
+    Quaternion q_ref;
 
 //Define Variables for ISRs
     byte last_channel_1, last_channel_2, last_channel_3, last_channel_4;
@@ -86,8 +90,17 @@ void initial_imu_cal(){
   gyro_errorX = gyro_errorX/calset;
   gyro_errorY = gyro_errorY/calset;
   gyro_errorZ = gyro_errorZ/calset;
-  
+
+  calibrate_imu_data();
+  q_ref = ToQuaternion(yaw, pitch, roll);
+
   /*
+  Serial.print("Q_REF: "); Serial.print(q_ref.w); Serial.print(" | ");
+  Serial.print(q_ref.x); Serial.print(" | ");
+  Serial.print(q_ref.y); Serial.print(" | ");
+  Serial.print(q_ref.z); 
+  Serial.println();
+  
   Serial.print("Calibration Complete.");
   Serial.println();
   Serial.print("AccelX: "); Serial.print(accel_errorX);
@@ -103,8 +116,9 @@ void initial_imu_cal(){
 void imu_read() {
   raw_imu_data();
   calibrate_imu_data();
-  print_to_PDE;
+  //print_to_PDE();
   //print_imu_data();
+  print_Quaternions();
 }
 
 void raw_imu_data(){
@@ -124,7 +138,7 @@ void raw_imu_data(){
 
   //Read Gyros and Calculate Degrees/second using the onboard running clock, millis()
   previousTime = currentTime; 
-  currentTime = millis();     
+  currentTime = millis();  
   elapsedTime = (currentTime - previousTime) / 1000; //Convert to seconds
   
   gyro_x = (Wire.read()<<8 | Wire.read()) / 131.0; //Read registers 0x43 and 0x44 (Gyro x High and Low)
@@ -215,6 +229,22 @@ void print_imu_data(){
   Serial.println();
 }
 
+void print_Quaternions(){
+  Quaternion quat; 
+  Quaternion q_e;
+  quat = ToQuaternion(yaw, pitch, roll);
+  q_e = K_Product(quat, q_ref);
+  Serial.print(quat.w); Serial.print(" | ");
+  Serial.print(quat.x); Serial.print(" | ");
+  Serial.print(quat.y); Serial.print(" | ");
+  Serial.print(quat.z); Serial.print(" Q_ERROR: ");
+  Serial.print(q_e.w); Serial.print(" | ");
+  Serial.print(q_e.x); Serial.print(" | ");
+  Serial.print(q_e.y); Serial.print(" | ");
+  Serial.print(q_e.z);
+  Serial.println();
+}
+
 void print_signals(){
     Serial.print("Roll:");
     if(rx_inputch_1 - 1400 < 0)Serial.print("<<<");
@@ -240,3 +270,6 @@ void print_signals(){
     else Serial.print("-+-");
     Serial.print(rx_inputch_4);
 }
+
+
+
